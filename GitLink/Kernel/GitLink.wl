@@ -61,6 +61,7 @@ GitExpandTree;
 GitWriteTree;
 GitReadBlob;
 GitWriteBlob;
+GitFileBlob;
 
 GitRepoList;
 ManageGitRepoList;
@@ -75,7 +76,6 @@ Begin["`Private`"];
 (* ::Subsection::Closed:: *)
 (*InitializeGitLibrary*)
 
-Needs["CURLLink`"]
 
 $EvaluationFileName = Replace[$InputFileName, "" :> NotebookFileName[EvaluationNotebook[]]]
 
@@ -101,9 +101,7 @@ glFunctionLoad[False, name_String, argTypes_, resultType_] :=
 
 InitializeGitLibrary[] := 
 Block[{path, $LibraryPath = Join[$GitLibraryPath, $LibraryPath], libname},
-	libname = If[$OperatingSystem === "MacOSX" &&
-				($VersionNumber < 10.4 || $CreationDate < DateObject[{2016, 1, 15}]),
-				"gitLink_10_3", "gitLink"];
+	libname = If[$VersionNumber > 12., "gitLink","gitLink_ssl100"];
 	path = FindLibrary[libname];
 	If[!StringQ[path],
 		$GitLibrary=.;
@@ -399,7 +397,7 @@ Module[{nodeList, treeList, firstLevelList, objs},
 	nodeList=nodeLabelFunction/@Join[commitList, treeList, firstLevelList];
 	Graph[nodeList, computeEdges[commitList, treeList, firstLevelList],
 		GraphLayout->{"GridEmbedding", "Dimension"->{3,3}},
-		EdgeShapeFunction->GraphElementData["FilledArrow", "ArrowSize"->0.05],
+		EdgeShapeFunction->{{"FilledArrow", "ArrowSize"->0.05}},
 		BaseStyle->{TooltipBoxOptions->{LabelStyle->
 			{Magnification->Dynamic@AbsoluteCurrentValue[EvaluationNotebook[], Magnification]}}}
 	]]
@@ -954,6 +952,25 @@ With[{writeblob = GL`GitWriteBlob[repo["GitDirectory"], #1, Quiet@OptionValue["P
 			Message[GitWriteBlob::badformat]; $Failed
 	]
 ]]
+
+
+(* takes a repo, ref, and relative path, and returns a GitObject representing the blob for that path *)
+GitFileBlob[repo_GitRepo, ref_String, relpath_String] := 
+Module[{refobj, blob, expandedTree},
+	refobj = blob = ToGitObject[repo, ref];
+	If[blob === $Failed, Message[GitFileBlob::noref, repo, ref]; Return[$Failed]];
+	Do[
+		expandedTree = GitExpandTree[blob];
+		blob = FirstCase[expandedTree, KeyValuePattern[{"Name" -> path, "Object" -> obj_}] :> obj, None];
+		If[blob === None, Message[GitFileBlob::nopath, path, refobj]; Break[]];
+		,
+		{path, FileNameSplit[relpath]}
+	];
+	If[blob === None, $Failed, blob]
+]
+
+GitFileBlob[repo_GitRepo, commit_GitObject, relpath_String] :=
+	GitFileBlob[repo, GitSHA[commit], relpath]
 
 
 (* ::Subsection::Closed:: *)

@@ -3,9 +3,8 @@
 Paclet[
     Name -> "GitLink",
     Version -> "`version`",
-    MathematicaVersion -> "11.1+",
+    MathematicaVersion -> "12.1+",
     Root -> ".",
-    Internal -> True,
     Extensions -> 
         {
             {"Kernel", Root -> ".", Context -> "GitLink`"},
